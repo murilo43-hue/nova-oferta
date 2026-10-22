@@ -1,123 +1,155 @@
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { ArrowDown, Check, CircleHelp, Gift, Heart, Leaf, Scissors, Sparkles, Sprout, Target, Wallet, WandSparkles } from "lucide-react";
+import { Check, ChevronDown, CircleHelp, X, ArrowRight, Leaf, Heart, Scissors, Printer, CircleDot, Sparkles } from "lucide-react";
 import "./index.css";
-import { CONTENT, OFFER } from "./config";
+import { OFFER, CHECKOUT, CONTENT, MATERIALS, GUARANTEE, DELIVERY, LICENSE, LINKS, IMAGES } from "./config";
 
-function Dotted({ className = "" }) {
-  return <svg aria-hidden="true" className={className} viewBox="0 0 120 12" fill="none"><path d="M3 6H117" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeDasharray="0.1 8" /></svg>;
+const money = (n) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n);
+const validUrl = (value) => { try { const u = new URL(value); return u.protocol === "https:" && u.hostname.length > 0; } catch { return false; } };
+const itemLabel = (item) => `${item.quantity ? item.quantity + " " : ""}${item.title}`;
+const allPremiumItems = () => [
+  ...(CONTENT.premiumIncludesEntry === true ? CONTENT.entryItems.map((i) => ({ ...i, title: "Tudo da opção de entrada: " + i.title })) : []),
+  ...(CONTENT.lesson.title.trim() ? [{ title: CONTENT.lesson.title, description: [CONTENT.lesson.format, CONTENT.lesson.duration].filter(Boolean).join(" · ") }] : []),
+  ...CONTENT.premiumExtraItems,
+];
+export function getPendencias() {
+  const p = [];
+  if (!validUrl(CHECKOUT.entry)) p.push("Link de checkout Kirvano da opção de R$15,90");
+  if (!validUrl(CHECKOUT.popup)) p.push("Link de checkout Kirvano do Plano Completo por R$19,90");
+  if (!validUrl(CHECKOUT.premium)) p.push("Link de checkout Kirvano do Plano Completo por R$27,00");
+  if (!CONTENT.entryItems.length) p.push("Cadastrar os itens confirmados da opção de R$15,90");
+  if (CONTENT.premiumIncludesEntry === null) p.push("Confirmar se o Plano Completo inclui a opção de entrada");
+  if (!CONTENT.lesson.title.trim()) p.push("Confirmar o título da aula do Plano Completo");
+  if (!CONTENT.format.trim()) p.push("Confirmar o formato dos moldes");
+  if (!CONTENT.premiumExtraItems.length) p.push("Confirmar outros itens do Plano Completo (ou registrar que não há extras)");
+  if (!MATERIALS.confirmed) p.push("Confirmar a lista de materiais necessários");
+  if (!DELIVERY.confirmed) p.push("Confirmar o procedimento de entrega pela Kirvano");
+  if (!GUARANTEE.confirmed) p.push("Confirmar o procedimento de garantia/reembolso da Kirvano");
+  if (LICENSE.sellFinishedPieces === null) p.push("Confirmar a licença para venda das peças prontas");
+  if (!IMAGES.hero || !IMAGES.mold || !IMAGES.finished) p.push("Adicionar fotos reais do molde e da peça pronta");
+  if (!LINKS.terms || !validUrl(LINKS.terms)) p.push("Adicionar URL válida dos Termos de Uso");
+  if (!LINKS.privacy || !validUrl(LINKS.privacy)) p.push("Adicionar URL válida da Política de Privacidade");
+  if (!LINKS.contact || !validUrl(LINKS.contact)) p.push("Adicionar URL válida de Contato");
+  p.push("Configurar o Pixel da Meta com o ID fornecido pelo proprietário");
+  return p;
 }
-
-function TreeArt({ finished = false, className = "" }) {
-  const dots = [];
-  for (let row = 0; row < 6; row++) {
-    const count = row + 1;
-    for (let col = 0; col < count; col++) {
-      dots.push({ x: 100 - row * 10 + col * 20, y: 38 + row * 25, color: (row + col) % 4 === 0 ? "#B4232C" : "#1F5C3F" });
-    }
+function track(event, data) {
+  if (typeof window !== "undefined" && typeof window.fbq === "function") {
+    if (event === "CliqueCheckout") window.fbq("trackCustom", event, data);
+    else window.fbq("trackCustom", event);
+  } else if (import.meta.env.DEV) console.log("[tracking]", event, data || {});
+}
+function goToCheckout(tipo) {
+  const link = CHECKOUT[tipo];
+  if (!validUrl(link)) { if (import.meta.env.DEV) console.warn("Checkout vazio ou inválido:", tipo); return false; }
+  const url = new URL(link);
+  const current = new URL(window.location.href);
+  ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "src"].forEach((key) => {
+    const value = current.searchParams.get(key);
+    if (value && !url.searchParams.has(key)) url.searchParams.set(key, value);
+  });
+  const plan = tipo === "entry" ? OFFER.entryName : OFFER.premiumName;
+  const value = tipo === "entry" ? OFFER.entryPrice : tipo === "popup" ? OFFER.popupPrice : OFFER.premiumPrice;
+  track("CliqueCheckout", { plano: plan, value, currency: "BRL" });
+  window.location.assign(url.toString());
+  return true;
+}
+function Button({ children, onClick, disabled = false, secondary = false, className = "", type = "button" }) {
+  return <button type={type} disabled={disabled} onClick={onClick} className={`btn ${secondary ? "btn-secondary" : "btn-primary"} ${className}`}>{children}</button>;
+}
+function DottedDivider() { return <div className="dotted-divider" aria-hidden="true"><span>• • • • • • • • • • • • • • • • • • • •</span></div>; }
+function TreeIllustration({ finished = false, variant = "tree" }) {
+  if (variant === "star") return <svg viewBox="0 0 180 140" role="img" aria-label="Ilustração de estrela natalina"><path d="M90 15 L101 55 L143 55 L109 80 L122 120 L90 95 L58 120 L71 80 L37 55 L79 55 Z" fill={finished ? "#C99A2E" : "none"} stroke="#C99A2E" strokeWidth="3" strokeLinejoin="round" strokeDasharray={finished ? "0" : "2 6"}/><path d="M90 25V110" stroke="#B4232C" strokeWidth="2" strokeDasharray="2 5"/></svg>;
+  return <svg viewBox="0 0 220 240" role="img" aria-label={finished ? "Ilustração de cartão com árvore de Natal bordada" : "Ilustração de molde com pontos de perfuração em árvore de Natal"}><path d="M110 26 L62 87 H86 L42 137 H84 L55 177 H165 L136 137 H178 L134 87 H158 Z" fill={finished ? "#E8F2EC" : "none"} stroke="#1F5C3F" strokeWidth="3" strokeLinejoin="round" strokeDasharray={finished ? "0" : "2 7"}/>{Array.from({length: 27},(_,i)=>{const y=49+Math.floor(i/5)*27; const x=110+((i%5)-2)*17; return <circle key={i} cx={x} cy={y} r={finished?2.8:3.4} fill={i%3===0?"#B4232C":finished?"#1F5C3F":"#C99A2E"}/>})}<path d="M97 177H123V210H97Z" fill="#C99A2E" stroke="#1F5C3F" strokeWidth="2"/><path d="M110 12 L114 22 L125 22 L116 29 L120 40 L110 33 L100 40 L104 29 L95 22 L106 22Z" fill="#C99A2E"/></svg>;
+}
+function HeroArt() {
+  if (IMAGES.hero) return <img className="hero-photo" src={IMAGES.hero.src} alt={IMAGES.hero.alt} width={IMAGES.hero.width} height={IMAGES.hero.height} fetchPriority="high" />;
+  return <div className="hero-art"><div className="paper-sample"><span className="sample-label">Molde ilustrativo</span><TreeIllustration /></div><div className="finished-sample"><span className="sample-label">Peça ilustrativa</span><TreeIllustration finished /></div><span className="little-star">✦</span><span className="art-note">Ilustração</span></div>;
+}
+function ItemList({ items }) { if (!items?.length) return null; return <ul className="item-list">{items.map((item,i)=><li key={item.title+i}><Check size={19} aria-hidden="true"/><span><strong>{itemLabel(item)}</strong>{item.description && <small>{item.description}</small>}</span></li>)}</ul>; }
+function ProductIcon({ index=0 }) { const icons=[Printer, CircleDot, Scissors, Leaf, Sparkles]; const Icon=icons[index%icons.length]; return <div className="product-icon"><Icon size={27} aria-hidden="true"/></div>; }
+function App() {
+  const [popupOpen,setPopupOpen]=useState(false);
+  const [faqOpen,setFaqOpen]=useState({});
+  const [pendingOpen,setPendingOpen]=useState(true);
+  const [stickyVisible,setStickyVisible]=useState(false);
+  const [popupUsed,setPopupUsed]=useState(false);
+  const originRef=useRef(null);
+  const titleRef=useRef(null);
+  const dialogRef=useRef(null);
+  const entryButtonRef=useRef(null);
+  useEffect(()=> {
+    const hero=document.getElementById("hero");
+    const offer=document.getElementById("oferta");
+    if (!hero || !offer || typeof IntersectionObserver==="undefined") return;
+    const a=new IntersectionObserver(([e])=>setStickyVisible(!e.isIntersecting),{threshold:0.05}); a.observe(hero);
+    const b=new IntersectionObserver(([e])=>{if(e.isIntersecting)setStickyVisible(false);},{threshold:0.12}); b.observe(offer);
+    return ()=>{a.disconnect();b.disconnect();};
+  },[]);
+  useEffect(()=> {
+    const enabled=import.meta.env.DEV || new URLSearchParams(window.location.search).get("pendencias")==="1";
+    if (!enabled) return;
+    // painel exibido abaixo; não altera o conteúdo comercial público
+  },[]);
+  useEffect(()=> {
+    if(!popupOpen) return;
+    const previous=document.activeElement;
+    document.body.style.overflow="hidden";
+    titleRef.current?.focus();
+    const onKey=(e)=>{
+      if(e.key==="Escape"){e.preventDefault();closePopup();return;}
+      if(e.key==="Tab" && dialogRef.current){
+        const nodes=dialogRef.current.querySelectorAll('button:not([disabled]),a[href], [tabindex="0"]');
+        const list=Array.from(nodes); if(!list.length)return;
+        if(e.shiftKey && document.activeElement===list[0]){e.preventDefault();list[list.length-1].focus();}
+        else if(!e.shiftKey && document.activeElement===list[list.length-1]){e.preventDefault();list[0].focus();}
+      }
+    };
+    window.addEventListener("keydown",onKey);
+    return ()=>{window.removeEventListener("keydown",onKey);document.body.style.overflow="";if(previous && previous.focus) previous.focus();};
+  },[popupOpen]);
+  function closePopup(){setPopupOpen(false);setTimeout(()=>originRef.current?.focus(),0);}
+  function openPopup() {
+    if (!validUrl(CHECKOUT.popup)) { goToCheckout("entry"); return; }
+    let used=popupUsed;
+    try { used=used || sessionStorage.getItem("pontoGuiadoPopupUsed")==="1"; } catch {}
+    if(used){goToCheckout("entry");return;}
+    try { sessionStorage.setItem("pontoGuiadoPopupUsed","1"); } catch {}
+    setPopupUsed(true); originRef.current=entryButtonRef.current;
+    setPopupOpen(true); track("PopupCompleto");
   }
-  return <svg className={className} viewBox="0 0 200 220" role="img" aria-label={finished ? "Exemplo ilustrativo de cartão com árvore natalina artesanal" : "Molde ilustrativo de árvore de Natal com pontos indicados"}>
-    <path d="M100 20 60 73h21L47 111h35L39 151h122l-43-40h35l-34-38h21L100 20Z" fill={finished ? "#E8F2EC" : "#F7F0E6"} stroke="#1F5C3F" strokeWidth="1.8" strokeLinejoin="round" strokeDasharray={finished ? "0" : "2 5"} />
-    {dots.map((d, i) => <circle key={i} cx={d.x} cy={d.y} r={finished ? 3.8 : 3.1} fill={finished ? d.color : "#FFFBF5"} stroke={d.color} strokeWidth="2" />)}
-    <path d="M91 153h18v28H91z" fill={finished ? "#B4232C" : "#FFFBF5"} stroke="#1F5C3F" strokeWidth="2" strokeDasharray={finished ? "0" : "2 4"} />
-    <path d="M100 7 103 15l8 1-6 5 2 8-7-4-7 4 2-8-6-5 8-1 3-8Z" fill="#C99A2E" stroke="#A67C1F" strokeWidth="1" />
-    {finished && <path d="M72 89q28 22 56 0M60 126q40 22 80 0" fill="none" stroke="#B4232C" strokeWidth="2.2" strokeLinecap="round" />}
-  </svg>;
-}
-
-function HeroIllustration() {
-  return <div className="hero-illustration" aria-label="Ilustração demonstrativa da transformação de um molde em cartão artesanal">
-    <div className="pattern-card"><span className="art-label">MOLDE ILUSTRATIVO</span><TreeArt /><Dotted className="art-dots" /></div>
-    <div className="transformation" aria-hidden="true"><ArrowDown size={20} /><span>bordar</span></div>
-    <div className="finished-card"><span className="art-label">EXEMPLO ILUSTRATIVO</span><TreeArt finished /><div className="card-greeting">Feito com carinho</div><span className="gold-dot" /></div>
-    <div className="floating-sparkle sparkle-a"><Sparkles size={23} /></div><div className="floating-sparkle sparkle-b"><Sprout size={25} /></div>
+  const faq = [
+    ["Nunca bordei. Consigo fazer?","Os moldes foram pensados para quem está começando: o desenho já vem pronto e os pontos mostram onde furar e por onde passar a linha."],
+    ["Preciso saber desenhar?","Não. Você segue o desenho e os pontos que já estão no molde."],
+    ["O que é bordado no papel?","É uma técnica artesanal: você fura o papel nos pontos indicados e passa a linha por eles para formar o desenho."],
+    ...(CONTENT.format.trim() ? [["Preciso ter impressora?",`Os moldes são em ${CONTENT.format}. Se não tiver impressora, dá para imprimir em uma papelaria.`]] : []),
+    ...(MATERIALS.confirmed ? [["Quais materiais vou precisar?",<>Os materiais não estão inclusos. Em geral, você vai usar:<ul>{MATERIALS.items.map(x=><li key={x}>{x}</li>)}</ul></>]] : []),
+    ["O que recebo por R$15,90?",<ItemList items={CONTENT.entryItems}/>],
+    ["O que inclui o Plano Completo de R$27?",<><ItemList items={allPremiumItems()}/>{!CONTENT.lesson.title.trim() && <p>Aula de bordado no papel.</p>}</>],
+    ...(LICENSE.sellFinishedPieces === true ? [["Posso vender as peças que eu fizer?","Pode. As peças prontas que você fizer são suas para vender; só os arquivos dos moldes não podem ser revendidos nem compartilhados. As vendas dependem de preço, divulgação, procura e acabamento; não há garantia de encomendas nem de renda."]] : []),
+    ...(DELIVERY.confirmed ? [["Como recebo o acesso?",DELIVERY.text]] : []),
+    ["Como funciona a garantia?",<><p>Você tem {GUARANTEE.days} dias para avaliar sua compra. Se não for o que você esperava, peça o reembolso em até {GUARANTEE.days} dias depois da compra, pela própria Kirvano.</p>{GUARANTEE.confirmed && <p>{GUARANTEE.howTo}</p>}</>],
+  ];
+  const entryReady=validUrl(CHECKOUT.entry), popupReady=validUrl(CHECKOUT.popup), premiumReady=validUrl(CHECKOUT.premium);
+  const facts=[CONTENT.format.trim(),OFFER.oneTimePayment===true?"Pagamento único":"",...OFFER.paymentMethods].filter(Boolean);
+  const devPanel=import.meta.env.DEV || new URLSearchParams(window.location.search).get("pendencias")==="1";
+  const pending=getPendencias();
+  return <div className="page-shell">
+    <header className="hero section-wrap" id="hero"><div className="hero-copy"><div className="eyebrow"><span className="eyebrow-dot"/> Imprima · Fure · Borde</div><h1>Peças de Natal bordadas por você, <em>mesmo sem saber desenhar.</em></h1><p className="hero-sub">Os moldes já vêm com os pontos marcados: você imprime, fura e borda. Para presentear ou para vender neste fim de ano.</p><p className="hero-support">Se você sabe ligar os pontinhos, consegue seguir o molde.</p><Button onClick={()=>document.getElementById("oferta")?.scrollIntoView({behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth"})}>Quero começar por {money(OFFER.entryPrice)} <ArrowRight size={20}/></Button>{facts.length>0&&<p className="hero-facts">{facts.join(" · ")}</p>}</div><HeroArt /></header>
+    <DottedDivider/>
+    <section className="section-wrap section-block"><div className="section-heading"><span className="section-kicker">A gente começa do começo</span><h2>Você também queria criar algo bonito neste Natal, mas não sabe por onde começar?</h2></div><div className="pain-grid">{[["Não sei desenhar","Vejo peças lindas, mas travo no desenho."],["Acho que não levo jeito","Já tentei um trabalho manual e a linha embolou, o ponto saiu torto."],["Tenho medo de gastar à toa","Não quero comprar material e deixar tudo parado na gaveta."],["Dezembro aperta","Presente, ceia, amigo secreto: a lista cresce e o orçamento não."],["Quero vender algo no fim de ano","Vejo gente vendendo de tudo e não sei o que fazer."],["Quero um presente com significado","Algo feito por mim para a família, os amigos ou as pessoas da igreja."]].map(([t,d],i)=><article className="pain-card" key={t}><span className="pain-number">0{i+1}</span><h3>{t}</h3><p>{d}</p></article>)}</div><div className="transition-note"><Heart size={24}/><p><strong>Não é falta de talento. É falta de um molde que mostre o caminho.</strong> No Ponto Guiado, o desenho já vem pronto no molde e os pontos mostram onde a agulha entra.</p></div></section>
+    <section className="alt-section"><div className="section-wrap section-block"><div className="section-heading"><span className="section-kicker">Simples, ponto a ponto</span><h2>Um caminho guiado para começar no bordado no papel</h2><p>Veja como funciona e o que vem em cada opção.</p></div><div className="steps-grid">{[["Imprima o molde","O desenho já vem pronto, com os pontos marcados.",Printer],["Fure os pontos","Com um alfinete ou uma agulha grossa, sobre uma base macia.",CircleDot],["Borde seguindo o desenho","Passe a linha de ponto em ponto até formar a peça.",Scissors]].map(([t,d,Icon],i)=><article className="step-card" key={t}><div className="step-icon"><Icon size={28}/></div><span className="step-count">PASSO 0{i+1}</span><h3>{t}</h3><p>{d}</p></article>)}</div><div className="content-items"><h3>O que vem na opção de entrada</h3>{CONTENT.entryItems.length?<div className="items-grid">{CONTENT.entryItems.map((item,i)=><article className="included-card" key={item.title+i}><ProductIcon index={i}/><h4>{itemLabel(item)}</h4>{item.description&&<p>{item.description}</p>}</article>)}</div>:null}</div>{MATERIALS.confirmed&&<div className="materials-box"><h3>O que você vai precisar ter em casa <span>(não incluso)</span></h3><ul>{MATERIALS.items.map(x=><li key={x}>{x}</li>)}</ul></div>}</div></section>
+    <section className="section-wrap section-block"><div className="section-heading"><span className="section-kicker">Feito para você</span><h2>Feito para quem quer começar do zero</h2></div><div className="audience-grid">{[["Para quem nunca bordou","Quer aprender seguindo uma referência visual."],["Para quem não sabe desenhar","O desenho já vem no molde."],["Para quem quer fazer os próprios presentes","Para a família, os amigos e o amigo secreto."],["Para quem quer ter o que vender no fim de ano","Procura uma peça artesanal para oferecer."],...(CONTENT.hasChristianThemes===true?[["Para quem gosta de temas cristãos","Quer peças de Natal ligadas à fé."]]:[]),["Para quem prefere o próprio ritmo","Sem prazo fixo para terminar."]].map(([t,d])=><div className="audience-item" key={t}><Check size={20}/><div><h3>{t}</h3><p>{d}</p></div></div>)}</div></section>
+    <section className="alt-section"><div className="section-wrap section-block"><div className="section-heading"><span className="section-kicker">Visualize o processo</span><h2>Veja a ideia: do molde à peça</h2></div><div className="compare-grid"><article className="compare-card">{IMAGES.mold?<img src={IMAGES.mold.src} alt={IMAGES.mold.alt} width={IMAGES.mold.width} height={IMAGES.mold.height} loading="lazy"/>:<div className="compare-illustration"><TreeIllustration/><span>Molde ilustrativo</span></div>}<h3>O molde com os pontos</h3></article><article className="compare-card">{IMAGES.finished?<img src={IMAGES.finished.src} alt={IMAGES.finished.alt} width={IMAGES.finished.width} height={IMAGES.finished.height} loading="lazy"/>:<div className="compare-illustration"><TreeIllustration finished/><span>Exemplo ilustrativo</span></div>}<h3>A peça pronta</h3></article></div></div></section>
+    <section className="section-wrap section-block"><div className="section-heading"><span className="section-kicker">Ideias para inspirar</span><h2>Inspire-se em ideias para criar neste Natal</h2></div>{IMAGES.gallery.length>0?<><div className="gallery-grid">{IMAGES.gallery.map((img,i)=><figure className="gallery-card" key={img.src}><img src={img.src} alt={img.alt} width={img.width} height={img.height} loading="lazy"/><figcaption>{img.alt}</figcaption></figure>)}</div><p className="gallery-caption">Peças feitas com os moldes do Ponto Guiado</p></>:<div className="ideas-grid">{[["Cartão natalino","card"],["Enfeite de Natal","tree"],["Estrela decorativa","star"]].map(([label,variant])=><article className="idea-card" key={label}><div className="idea-art">{variant==="star"?<TreeIllustration variant="star"/>:<TreeIllustration finished={variant==="tree"}/>}</div><h3>{label}</h3><span>Ilustração</span></article>)}</div>}</section>
+    <section className="offer-section" id="oferta"><div className="section-wrap section-block"><div className="section-heading"><span className="section-kicker">Escolha seu caminho</span><h2>Escolha como começar seu bordado de Natal</h2><p>Compare as opções e comece no seu ritmo.</p></div><div className="pricing-grid"><article className="price-card"><div className="price-top"><span className="price-label">PARA COMEÇAR</span><h3>{OFFER.entryName}</h3><p className="price-description">Para conhecer o bordado no papel e começar a criar peças de Natal seguindo moldes guiados.</p><p className="price">{money(OFFER.entryPrice)}</p></div><ItemList items={CONTENT.entryItems}/><Button onClick={openPopup} disabled={!entryReady}>{entryReady?"Quero começar por "+money(OFFER.entryPrice):"Disponível em breve"}</Button></article><article className="price-card premium-card"><div className="premium-tag">Mais completo</div><div className="price-top"><span className="price-label">PARA TER MAIS APOIO</span><h3>{OFFER.premiumName}</h3><p className="price-description">Para quem quer aprender com mais apoio.</p><p className="price">{money(OFFER.premiumPrice)}</p></div>{CONTENT.premiumIncludesEntry===true&&<><h4>Inclui também a opção de entrada</h4><ItemList items={CONTENT.entryItems}/></>}{!CONTENT.lesson.title.trim()&&<ul className="item-list"><li><Check size={19}/><span><strong>Aula de bordado no papel</strong></span></li></ul>}<ItemList items={allPremiumItems().filter(i=>i.title!==CONTENT.lesson.title)}/><Button onClick={()=>goToCheckout("premium")} disabled={!premiumReady}>{premiumReady?"Quero o Plano Completo por "+money(OFFER.premiumPrice):"Disponível em breve"}</Button></article></div><p className="checkout-note">{[OFFER.oneTimePayment===true?"Pagamento único":"",...OFFER.paymentMethods].filter(Boolean).join(" · ")}</p></div></section>
+    <section className="section-wrap section-block guarantee-section"><div className="guarantee-icon"><Heart size={30}/></div><div><span className="section-kicker">Sua compra, suas regras</span><h2>Você tem {GUARANTEE.days} dias para avaliar sua compra</h2><p>Se não for o que você esperava, peça o reembolso em até {GUARANTEE.days} dias depois da compra, pela própria Kirvano.</p>{GUARANTEE.confirmed&&<p className="guarantee-steps">{GUARANTEE.howTo}</p>}</div></section>
+    <section className="alt-section"><div className="section-wrap section-block faq-section"><div className="section-heading"><span className="section-kicker">Dúvidas frequentes</span><h2>Ficou com alguma dúvida?</h2></div><div className="faq-list">{faq.map(([q,a],i)=><article className="faq-item" key={q}><h3><button aria-expanded={!!faqOpen[i]} aria-controls={"faq-answer-"+i} onClick={()=>setFaqOpen(s=>({...s,[i]:!s[i]}))}>{q}<ChevronDown size={21} className={faqOpen[i]?"chevron-open":""}/></button></h3>{faqOpen[i]&&<div id={"faq-answer-"+i} className="faq-answer">{a}</div>}</article>)}</div></div></section>
+    <section className="final-cta"><div className="section-wrap final-cta-inner"><span className="section-kicker">Seu próximo ponto começa aqui</span><h2>Neste Natal, dê o primeiro ponto na sua própria criação.</h2><p>Imprima o molde, fure os pontos marcados e borde peças de Natal para presentear ou para vender.</p><div className="final-price">Comece por {money(OFFER.entryPrice)}</div><Button onClick={()=>document.getElementById("oferta")?.scrollIntoView({behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth"})}>Quero começar por {money(OFFER.entryPrice)} <ArrowRight size={20}/></Button></div></section>
+    <footer className="site-footer"><div className="section-wrap footer-inner"><strong>Ponto Guiado · Edição de Natal</strong><nav aria-label="Links do rodapé">{validUrl(LINKS.terms)&&<a href={LINKS.terms}>Termos de Uso</a>}{validUrl(LINKS.privacy)&&<a href={LINKS.privacy}>Política de Privacidade</a>}{validUrl(LINKS.contact)&&<a href={LINKS.contact}>Contato</a>}</nav>{[CHECKOUT.entry,CHECKOUT.popup,CHECKOUT.premium].some(validUrl)&&<p>Pagamento processado pela Kirvano.</p>}<p className="legal-note">Os resultados de venda dependem de fatores individuais e de mercado. Não há promessa de renda ou de vendas.</p></div></footer>
+    {stickyVisible&&<div className="sticky-cta"><Button onClick={()=>document.getElementById("oferta")?.scrollIntoView({behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth"})}>Quero começar por {money(OFFER.entryPrice)}</Button></div>}
+    {popupOpen&&<div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)closePopup();}}><div className="modal-card" role="dialog" aria-modal="true" aria-labelledby="popup-title" ref={dialogRef}><button className="modal-close" aria-label="Fechar" onClick={closePopup}><X size={23}/></button><span className="modal-pill">Antes de continuar</span><h2 id="popup-title" tabIndex={-1} ref={titleRef}>Leve o Plano Completo por {money(OFFER.popupPrice)}</h2><p>É o mesmo Plano Completo de {money(OFFER.premiumPrice)} da página, por {money(OFFER.popupPrice-OFFER.entryPrice)} a mais que a opção de {money(OFFER.entryPrice)}.</p><ItemList items={allPremiumItems()}/>{!CONTENT.lesson.title.trim()&&<p className="modal-pending-lesson">Aula de bordado no papel</p>}<Button onClick={()=>goToCheckout("popup")} disabled={!popupReady}>{popupReady?"Quero o Plano Completo por "+money(OFFER.popupPrice):"Disponível em breve"}</Button><button className="decline-link" onClick={()=>goToCheckout("entry")} disabled={!entryReady}>Não, obrigado. Quero a opção de {money(OFFER.entryPrice)}</button></div></div>}
+    {devPanel&&<aside className="pending-panel"><button className="pending-toggle" onClick={()=>setPendingOpen(v=>!v)} aria-expanded={pendingOpen}><CircleHelp size={18}/> Pendências antes de publicar <ChevronDown size={18} className={pendingOpen?"chevron-open":""}/></button>{pendingOpen&&<div className="pending-body"><p>Visível apenas em desenvolvimento ou com <code>?pendencias=1</code>.</p><ul>{pending.map(x=><li key={x}>{x}</li>)}</ul></div>}</aside>}
   </div>;
 }
-
-const pains = [
-  { icon: WandSparkles, title: "Não sei desenhar", text: "Quero criar uma peça, mas não sei como começar pelo desenho." },
-  { icon: Scissors, title: "Nunca bordei", text: "Tenho vontade de aprender, mas preciso de uma orientação simples." },
-  { icon: Wallet, title: "Quero experimentar uma renda extra", text: "Gostaria de criar peças artesanais e descobrir se existe oportunidade de oferecê-las a outras pessoas." },
-  { icon: Target, title: "Quero gastar com consciência", text: "Preciso entender quais materiais são necessários antes de começar." },
-  { icon: Heart, title: "Quero presentear com significado", text: "Quero fazer algo especial para família, amigos ou pessoas da igreja." },
-];
-
-const audience = [
-  { icon: Sprout, title: "Para quem nunca bordou", text: "Quer aprender seguindo uma referência visual." },
-  { icon: Scissors, title: "Para quem gosta de trabalhos manuais", text: "Quer criar peças de Natal com as próprias mãos." },
-  { icon: Wallet, title: "Para quem deseja testar uma renda extra", text: "Quer explorar a possibilidade de vender criações artesanais." },
-  { icon: Gift, title: "Para quem gosta de presentes personalizados", text: "Quer criar lembranças para família e amigos." },
-  { icon: Heart, title: "Para quem aprecia temas cristãos", text: "Procura inspiração natalina ligada à fé, caso haja projetos desse tema no conteúdo real." },
-  { icon: Leaf, title: "Para quem quer aprender no próprio ritmo", text: "Prefere seguir as instruções sem promessa de prazo fixo." },
-];
-
-function App() {
-  const entryItems = CONTENT.entryItems;
-  return <main>
-    <header className="site-header"><div className="shell header-inner"><a href="#top" className="brand" aria-label="Ponto Guiado, início"><span className="brand-mark"><Sprout size={21} /></span><span>Ponto Guiado<small>EDIÇÃO DE NATAL</small></span></a><span className="header-note"><span className="status-dot" /> Uma ideia artesanal para começar</span></div></header>
-
-    <section id="top" className="hero-section">
-      <div className="shell hero-grid">
-        <div className="hero-copy">
-          <div className="eyebrow"><span className="eyebrow-line" />IMPRIMA <span>·</span> FURE <span>·</span> BORDE</div>
-          <h1>Neste Natal, transforme moldes guiados em <em>peças feitas por você.</em></h1>
-          <p className="hero-lead">Comece pelo bordado no papel com desenhos que indicam onde fazer os pontos. Crie peças natalinas para presentear e explore a possibilidade de oferecer suas criações para venda, mesmo que esteja começando do zero.</p>
-          <p className="support-line"><Check size={17} /> Um começo guiado para quem quer criar com as próprias mãos.</p>
-          <a className="button button-primary hero-cta" href="#oferta"><span>Quero começar por {formatPrice(OFFER.entryPrice)}</span><ArrowDown size={18} /></a>
-          <p className="cta-note">Conheça a proposta e confira os detalhes da oferta.</p>
-        </div>
-        <HeroIllustration />
-      </div>
-      <div className="hero-bottom-pattern" aria-hidden="true"><Dotted /></div>
-    </section>
-
-    <section className="section pains-section">
-      <div className="shell">
-        <div className="section-heading"><span className="kicker">SE VOCÊ ESTÁ COMEÇANDO</span><h2>Você também queria criar algo bonito neste Natal, mas <em>não sabe por onde começar?</em></h2></div>
-        <div className="pain-grid">{pains.map(({icon: Icon,title,text},i)=><article className="pain-card" key={title}><div className="card-icon"><Icon size={23} strokeWidth={1.8} /></div><span className="card-number">0{i+1}</span><h3>{title}</h3><p>{text}</p></article>)}</div>
-        <div className="transition-note"><div className="transition-icon"><Sparkles size={23}/></div><p>Você não precisa começar sabendo tudo. <strong>Um molde guiado pode ajudar a entender onde cada ponto deve ser feito.</strong></p></div>
-      </div>
-    </section>
-
-    <section className="section receives-section">
-      <div className="shell receives-grid">
-        <div className="receives-visual"><div className="paper-sheet"><span className="paper-caption">MOLDE GUIADO</span><TreeArt /><Dotted className="paper-dots" /></div><div className="receives-sticker"><Sprout size={19}/><span>Comece<br/>pelo molde</span></div></div>
-        <div className="receives-copy"><span className="kicker">O MATERIAL</span><h2>Um caminho guiado para começar no <em>bordado no papel</em></h2><p>Conheça os conteúdos digitais incluídos na oferta. A ideia é usar uma referência visual com os pontos indicados para orientar a execução do desenho.</p>
-          <div className="receive-item"><span><Check size={17}/></span><div><strong>Moldes de bordado no papel</strong><p>Desenhos com os pontos de perfuração indicados para ajudar a orientar o trabalho manual.</p></div></div>
-          <div className="receive-item"><span><Check size={17}/></span><div><strong>Uma referência visual para acompanhar</strong><p>Use o molde como apoio enquanto explora a técnica e cria suas peças.</p></div></div>
-          {entryItems.length > 0 && <div className="receive-extra"><strong>Conteúdos confirmados desta oferta</strong><ul>{entryItems.map((item,i)=><li key={i}>{item}</li>)}</ul></div>}
-          <p className="microcopy">A oferta não inclui materiais físicos, salvo se isso for informado expressamente na descrição final.</p>
-        </div>
-      </div>
-    </section>
-
-    <section className="section audience-section">
-      <div className="shell"><div className="section-heading centered"><span className="kicker">FEITO PARA VOCÊ</span><h2>Feito para quem quer <em>começar do zero</em></h2><p>Uma proposta para explorar a criatividade, sem precisar se apresentar como especialista.</p></div>
-        <div className="audience-grid">{audience.map(({icon:Icon,title,text})=><article className="audience-card" key={title}><div className="audience-icon"><Icon size={21}/></div><div><h3>{title}</h3><p>{text}</p></div></article>)}</div>
-      </div>
-    </section>
-
-    <section className="section demo-section">
-      <div className="shell"><div className="section-heading centered"><span className="kicker">ENTENDA A PROPOSTA</span><h2>Veja a ideia: do molde à <em>peça artesanal</em></h2><p>Ilustrações próprias para mostrar, de forma simples, a diferença entre a referência e uma possível peça final.</p></div>
-        <div className="demo-grid"><article className="demo-card"><div className="demo-art demo-pattern"><TreeArt/><Dotted className="demo-dots"/></div><div className="demo-caption"><span className="demo-step">01</span><div><h3>Molde ilustrativo</h3><p>Os pontos indicados funcionam como referência visual.</p></div></div></article><div className="demo-arrow" aria-hidden="true"><ArrowDown size={21}/></div><article className="demo-card"><div className="demo-art demo-finished"><TreeArt finished/><div className="card-greeting">Feito com carinho</div></div><div className="demo-caption"><span className="demo-step">02</span><div><h3>Exemplo ilustrativo</h3><p>Uma representação visual de como o desenho pode inspirar um cartão artesanal.</p></div></div></article></div>
-        <p className="illustration-disclaimer"><CircleHelp size={15}/> As imagens desta seção são ilustrações demonstrativas, não fotografias de clientes nem amostras confirmadas do produto final.</p>
-      </div>
-    </section>
-
-    <section className="section inspiration-section">
-      <div className="shell"><div className="section-heading"><span className="kicker">POSSIBILIDADES CRIATIVAS</span><h2>Inspire-se em ideias para criar <em>neste Natal</em></h2><p>Exemplos ilustrativos de estilos que podem inspirar projetos natalinos. Não representam uma lista confirmada de moldes incluídos.</p></div>
-        <div className="inspiration-grid"><article className="inspiration-card"><div className="inspiration-art red-art"><div className="mini-card"><span>✦</span><TreeArt finished/></div></div><div className="inspiration-text"><span className="inspiration-tag">EXEMPLO ILUSTRATIVO</span><h3>Árvore de Natal</h3><p>Uma ideia clássica para explorar formas, cores e detalhes artesanais.</p></div></article><article className="inspiration-card"><div className="inspiration-art green-art"><div className="mini-card wreath-card"><svg viewBox="0 0 180 180" role="img" aria-label="Ilustração de guirlanda natalina"><circle cx="90" cy="90" r="53" fill="none" stroke="#1F5C3F" strokeWidth="13" strokeDasharray="3 6" strokeLinecap="round"/><circle cx="90" cy="90" r="43" fill="none" stroke="#7A9A7B" strokeWidth="3" strokeDasharray="2 7"/><path d="M73 46 90 65 107 46 99 69 120 73 99 80 105 101 90 87 75 101 81 80 60 73 81 69Z" fill="#B4232C"/><circle cx="60" cy="100" r="5" fill="#C99A2E"/><circle cx="117" cy="112" r="5" fill="#C99A2E"/></svg></div></div><div className="inspiration-text"><span className="inspiration-tag">EXEMPLO ILUSTRATIVO</span><h3>Guirlanda decorativa</h3><p>Uma referência visual de tema natalino tradicional, mostrada apenas como inspiração.</p></div></article><article className="inspiration-card"><div className="inspiration-art gold-art"><div className="mini-card faith-card"><svg viewBox="0 0 180 180" role="img" aria-label="Ilustração de estrela de Belém"><path d="M90 18 101 69 143 40 115 82 163 92 115 102 143 144 101 115 90 162 79 115 37 144 65 102 17 92 65 82 37 40 79 69Z" fill="#C99A2E" stroke="#A67C1F" strokeWidth="2"/><circle cx="90" cy="92" r="12" fill="#FFFBF5"/></svg></div></div><div className="inspiration-text"><span className="inspiration-tag">EXEMPLO ILUSTRATIVO</span><h3>Estrela de Belém</h3><p>Um detalhe de inspiração cristã, sem definir a coleção inteira como religiosa.</p></div></article></div>
-        <p className="illustration-disclaimer"><CircleHelp size={15}/> Estes exemplos são ilustrações conceituais. Confirme quais desenhos fazem parte da coleção real antes de anunciar temas específicos.</p>
-      </div>
-    </section>
-
-    <div className="part-two-anchor" id="oferta" aria-label="Espaço reservado para a seção de oferta da Parte 2"><div className="shell"><p>Oferta e opções de compra serão apresentadas na Parte 2, com conteúdo confirmado e links de checkout configurados.</p></div></div>
-    <footer className="site-footer"><div className="shell footer-inner"><a href="#top" className="brand footer-brand"><span className="brand-mark"><Sprout size={20}/></span><span>Ponto Guiado<small>EDIÇÃO DE NATAL</small></span></a><p>Uma ideia artesanal para começar no seu ritmo.</p></div><div className="shell footer-legal">© {new Date().getFullYear()} Ponto Guiado · Edição de Natal</div></footer>
-  </main>;
-}
-
-function formatPrice(value) {
-  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: OFFER.currency }).format(value);
-}
-
 createRoot(document.getElementById("root")).render(<App />);
